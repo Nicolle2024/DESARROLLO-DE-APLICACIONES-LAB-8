@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ejercicio 2 - Monitor de Sistema</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 40px; background-color: #f4f6f9; color: #333; }
+        .container { max-width: 800px; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px; }
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        input, select, button { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        input { flex-grow: 1; }
+        button { background-color: #3498db; color: white; border: none; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #2980b9; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #ddd; }
+        th { background-color: #f8f9fa; color: #555; }
+        .pagination-info { margin-top: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: #666; }
+        .error-msg { color: #c0392b; background: #fde8e7; padding: 10px; border-radius: 4px; display: none; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Servidor HTTP Funcionando</h1>
+    <p><strong>Ejercicio 2</strong> - Sistema Híbrido con Seguridad Perimetral de Rutas</p>
+
+    <div id="errorBox" class="error-msg"></div>
+
+    <!-- Panel de control interactivo para Query Strings -->
+    <div class="controls">
+        <input type="text" id="filtroInput" placeholder="Buscar por nombre o categoría...">
+        <select id="limiteSelect">
+            <option value="2">2 por pág</option>
+            <option value="5" selected>5 por pág</option>
+            <option value="10">10 por pág</option>
+        </select>
+        <button onclick="cargarInventario(1)">Buscar</button>
+    </div>
+
+    <!-- Tabla Dinámica de Datos -->
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Producto</th>
+                <th>Categoría</th>
+                <th>Stock Disponible</th>
+            </tr>
+        </thead>
+        <tbody id="tablaProductos">
+            <tr>
+                <td colspan="4" style="text-align:center; color:#999;">Cargando catálogo en tiempo real...</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Controles de Paginación -->
+    <div class="pagination-info">
+        <span id="metaRegistros">Mostrando 0 registros</span>
+        <div>
+            <button id="btnAnt" onclick="cambiarPagina(-1)">◀ Anterior</button>
+            <span id="paginaActual" style="margin: 0 10px; font-weight: bold;">Pág: 1</span>
+            <button id="btnSig" onclick="cambiarPagina(1)">Siguiente ▶</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let paginaActual = 1;
+    let totalPaginas = 1;
+
+    async function cargarInventario(pagina = 1) {
+        const filtro = document.getElementById('filtroInput').value;
+        const limite = document.getElementById('limiteSelect').value;
+        const errorBox = document.getElementById('errorBox');
+        
+        errorBox.style.display = 'none';
+        paginaActual = pagina;
+
+        // Construcción dinámica de la Query String parametrizada
+        const url = `/api/inventario?pagina=${paginaActual}&limite=${limite}&filtro=${encodeURIComponent(filtro)}`;
+
+        try {
+            const respuesta = await fetch(url);
+            const resultado = await respuesta.json();
+
+            if (!respuesta.ok) {
+                throw new Error(resultado.error || 'Error en la consulta');
+            }
+
+            totalPaginas = resultado.paginacion.total_paginas;
+            
+            // Renderizar filas en la tabla
+            const tabla = document.getElementById('tablaProductos');
+            tabla.innerHTML = '';
+
+            if (resultado.datos.length === 0) {
+                tabla.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#999;">No se encontraron coincidencias en el inventario.</td></tr>`;
+            } else {
+                resultado.datos.forEach(prod => {
+                    const fila = `<tr>
+                        <td>${prod.id}</td>
+                        <td><strong>${prod.nombre}</strong></td>
+                        <td>${prod.categoria}</td>
+                        <td>${prod.stock} u.</td>
+                    </tr>`;
+                    tabla.innerHTML += fila;
+                });
+            }
+
+            // Actualizar metadatos del DOM
+            document.getElementById('paginaActual').innerText = `Pág: ${resultado.paginacion.pagina} / ${totalPaginas || 1}`;
+            document.getElementById('metaRegistros').innerText = `Total registros encontrados: ${resultado.paginacion.total_registros}`;
+            
+            // Estado de botones de navegación
+            document.getElementById('btnAnt').disabled = paginaActual <= 1;
+            document.getElementById('btnSig').disabled = paginaActual >= totalPaginas;
+
+        } catch (error) {
+            errorBox.innerText = `[Error 400 / Bad Request]: ${error.message}`;
+            errorBox.style.display = 'block';
+        }
+    }
+
+    function cambiarPagina(direccion) {
+        const nuevaPagina = paginaActual + direccion;
+        if (nuevaPagina > 0 && nuevaPagina <= totalPaginas) {
+            cargarInventario(nuevaPagina);
+        }
+    }
+
+    // Inicialización automática al cargar el árbol DOM
+    document.addEventListener('DOMContentLoaded', () => cargarInventario(1));
+</script>
+</body>
+</html>
